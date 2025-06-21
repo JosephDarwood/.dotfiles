@@ -1,2 +1,2 @@
-vim.notify("lua5breadlua worked")
-require("5bread.remap")
+require("5bread.init_lazy")
+

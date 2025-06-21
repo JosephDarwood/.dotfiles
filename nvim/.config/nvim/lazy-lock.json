@@ -1,0 +1,4 @@
+{
+  "darkrose.nvim": { "branch": "main", "commit": "ac689397a8b61bb87b455400ff0da46354133fae" },
+  "lazy.nvim": { "branch": "main", "commit": "6c3bda4aca61a13a9c63f1c1d1b16b9d3be90d7a" }
+}

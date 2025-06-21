@@ -1,2 +1,2 @@
-vim.notify("Yo, init1 hit")
+vim.g.have_nerd_font = true
 require("5bread")
