@@ -16,7 +16,7 @@ return {
 	    bin.live_grep()
     end, {desc = "Live grep"})
     vim.keymap.set("n","<leader>fb", function()
-	    bin.buffers
+	    bin.buffers()
     end, {desc = "buffas"})
   end,
 }
