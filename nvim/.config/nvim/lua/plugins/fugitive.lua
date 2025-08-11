@@ -1,6 +1,5 @@
 return {
   "tpope/vim-fugitive",
-  cmd = { "Git", "G", "Gdiffsplit", "Gvdiffsplit", "Gblame", "Gread", "Gwrite", "Gclog" },
   config = function()
     local map = vim.keymap.set
 
