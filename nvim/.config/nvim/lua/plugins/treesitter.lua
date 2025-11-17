@@ -1,6 +1,13 @@
 return {
   "nvim-treesitter/nvim-treesitter",
   build = ":TSUpdate",
+  keys = {
+    { "<leader>fo", "zo", desc = "Open fold" },
+    { "<leader>fc", "zc", desc = "Close fold" },
+    { "<leader>ft", "za", desc = "Toggle fold" },
+    { "<leader>fO", "zR", desc = "Open all folds" },
+    { "<leader>fC", "zM", desc = "Close all folds" },
+  },
   config = function()
     -- Core Treesitter modules
     require("nvim-treesitter.configs").setup({
@@ -33,8 +40,8 @@ return {
 
     -- Folding powered by Treesitter (no keybinds changed here)
     vim.opt.foldmethod = "expr"
-    vim.opt.foldexpr = "nvim_treesitter#foldexpr()"
-    vim.opt.foldlevel = 99 -- don't start with everything folded
+    vim.opt.foldexpr = "v:lua.vim.treesitter.foldexpr()"
+    vim.opt.foldlevel = 1 -- don't start with everything folded
   end,
 }
 
