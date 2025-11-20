@@ -1,6 +1,7 @@
 return {
   "nvim-treesitter/nvim-treesitter",
   build = ":TSUpdate",
+  event = { "BufReadPre", "BufNewFile" },
   keys = {
     { "<leader>fo", "zo", desc = "Open fold" },
     { "<leader>fc", "zc", desc = "Close fold" },
