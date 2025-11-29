@@ -42,7 +42,7 @@ return {
     -- Folding powered by Treesitter (no keybinds changed here)
     vim.opt.foldmethod = "expr"
     vim.opt.foldexpr = "v:lua.vim.treesitter.foldexpr()"
-    vim.opt.foldlevel = 1 -- don't start with everything folded
+    vim.opt.foldlevel = 11 -- don't start with everything folded
   end,
 }
 
