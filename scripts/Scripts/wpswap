@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+
+# --- config ---
+wallpapers_dir="$HOME/Wallpapers"
+state_file="$HOME/.wallpaper_state"   # 2 lines: group, img
+monitor="eDP-1"
+
+# --- ensure wallpapers dir exists ---
+if [[ ! -d "$wallpapers_dir" ]]; then
+  echo "Directory not found: $wallpapers_dir" >&2
+  exit 1
+fi
+
+# --- build group list (directories) ---
+shopt -s dotglob
+dir_list=( "$wallpapers_dir"/*/ )
+shopt -u dotglob
+if (( ${#dir_list[@]} == 0 )); then
+  echo "No subdirectories found in $wallpapers_dir" >&2
+  exit 1
+fi
+
+num_groups=${#dir_list[@]}
+
+# --- load state (group, img) ---
+current_group=0
+current_img=0
+
+if [[ -f "$state_file" ]]; then
+  mapfile -t state < "$state_file"
+  current_group="${state[0]:-0}"
+  current_img="${state[1]:-0}"
+fi
+
+# clamp group into range
+if (( current_group < 0 || current_group >= num_groups )); then
+  current_group=0
+fi
+
+cmd="$1"
+
+# --- handle group navigation (next_page/prev_page) ---
+case "$cmd" in
+  next_page)
+    current_group=$(( (current_group + 1) % num_groups ))
+    current_img=0   # reset image on group change
+    ;;
+  prev_page)
+    current_group=$(( (current_group - 1 + num_groups) % num_groups ))
+    current_img=0   # reset image on group change
+    ;;
+  next_img|prev_img|""|current)
+    # handled later / no change to group here
+    ;;
+  *)
+    echo "Usage: $0 [next_page|prev_page|next_img|prev_img|current]" >&2
+    exit 1
+    ;;
+esac
+
+# --- now: figure out images inside the current group ---
+group_dir="${dir_list[$current_group]%/}"
+img_list=( "$group_dir"/* )
+num_imgs=${#img_list[@]}
+
+if (( num_imgs == 0 )); then
+  echo "No images found in $group_dir" >&2
+  exit 1
+fi
+
+# light safety on img index
+if (( current_img < 0 || current_img >= num_imgs )); then
+  current_img=0
+fi
+
+# --- handle image navigation (next_img/prev_img) ---
+case "$cmd" in
+  next_img)
+    current_img=$(( (current_img + 1) % num_imgs ))
+    ;;
+  prev_img)
+    current_img=$(( (current_img - 1 + num_imgs) % num_imgs ))
+    ;;
+esac
+
+# --- save state back to file ---
+printf '%s\n%s\n' "$current_group" "$current_img" > "$state_file"
+
+current_image="${img_list[$current_img]}"
+
+# --- output current state ---
+echo "Current group index: $current_group"
+echo "Current directory: $group_dir"
+echo "Current image index: $current_img"
+echo "Current image: $current_image"
+
+# --- actually set the wallpaper via hyprpaper ---
+hyprctl hyprpaper preload "$current_image"
+hyprctl hyprpaper reload "$monitor,contain:$current_image"   # see fit notes below
+hyprctl hyprpaper unload unused
+
+
