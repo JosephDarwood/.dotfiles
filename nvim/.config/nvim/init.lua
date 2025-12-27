@@ -11,6 +11,16 @@ vim.wo.number = true
 vim.o.title = true      
 vim.o.titlestring = "%t"
 
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = { "c", "cpp", "h", "hpp" },
+  callback = function()
+    vim.bo.expandtab  = true  -- use spaces
+    vim.bo.shiftwidth = 4     -- indentation size
+    vim.bo.tabstop    = 4     -- how wide a <Tab> appears
+  end,
+})
+
+
 --old artifact from when i was testing stuff in here
 vim.keymap.set("n", "<leader>ttfquick", function()
   print("Hello from <leader>!")

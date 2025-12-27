@@ -13,7 +13,7 @@ return {
     -- Core Treesitter modules
     require("nvim-treesitter.configs").setup({
       highlight = { enable = true },
-      indent = { enable = true },
+      indent = { enable = true, disable = {"c", "cpp", "h", "hpp"} },
       incremental_selection = {
         enable = true,
         keymaps = {
