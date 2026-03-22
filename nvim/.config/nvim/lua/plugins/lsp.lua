@@ -107,7 +107,7 @@ return {
         ["<C-n>"] = cmp.mapping.select_next_item(),
         ["<C-p>"] = cmp.mapping.select_prev_item(),
         ["<C-Space>"] = cmp.mapping.complete(),
-        ["<CR>"] = cmp.mapping.confirm({ select = true }),
+        ["<Tab>"] = cmp.mapping.confirm({ select = true }),
         -- note: no <Tab> mapping here, so snippets stay out of your way
       }),
       sources = cmp.config.sources({
