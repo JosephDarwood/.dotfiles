@@ -1,102 +1,209 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-# --- config ---
-wallpapers_dir="$HOME/Wallpapers"
-state_file="$HOME/.wallpaper_state"   # 2 lines: group, img
-monitor="eDP-1"
+ROOT="${HOME}/Wallpapers"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/wallpaper-nav"
+STATE_FILE="${STATE_DIR}/state"
 
-# --- ensure wallpapers dir exists ---
-if [[ ! -d "$wallpapers_dir" ]]; then
-  echo "Directory not found: $wallpapers_dir" >&2
-  exit 1
-fi
+mkdir -p "$STATE_DIR"
 
-# --- build group list (directories) ---
-shopt -s dotglob
-dir_list=( "$wallpapers_dir"/*/ )
-shopt -u dotglob
-if (( ${#dir_list[@]} == 0 )); then
-  echo "No subdirectories found in $wallpapers_dir" >&2
-  exit 1
-fi
+is_image() {
+    case "${1,,}" in
+        *.jpg|*.jpeg|*.png|*.bmp|*.gif|*.webp) return 0 ;;
+        *) return 1 ;;
+    esac
+}
 
-num_groups=${#dir_list[@]}
+get_repos() {
+    local dirs=()
+    local d
+    shopt -s nullglob dotglob
+    for d in "$ROOT"/*; do
+        [[ -d "$d" ]] || continue
+        dirs+=("$d")
+    done
+    shopt -u nullglob
 
-# --- load state (group, img) ---
-current_group=0
-current_img=0
+    if ((${#dirs[@]} == 0)); then
+        return 1
+    fi
 
-if [[ -f "$state_file" ]]; then
-  mapfile -t state < "$state_file"
-  current_group="${state[0]:-0}"
-  current_img="${state[1]:-0}"
-fi
+    printf '%s\n' "${dirs[@]}" | sort
+}
 
-# clamp group into range
-if (( current_group < 0 || current_group >= num_groups )); then
-  current_group=0
-fi
+get_images_in_repo() {
+    local repo="$1"
+    local files=()
+    local f
+    shopt -s nullglob nocaseglob
+    for f in "$repo"/*; do
+        [[ -f "$f" ]] || continue
+        is_image "$f" || continue
+        files+=("$f")
+    done
+    shopt -u nullglob nocaseglob
 
-cmd="$1"
+    if ((${#files[@]} == 0)); then
+        return 1
+    fi
 
-# --- handle group navigation (next_page/prev_page) ---
-case "$cmd" in
-  next_page)
-    current_group=$(( (current_group + 1) % num_groups ))
-    current_img=0   # reset image on group change
-    ;;
-  prev_page)
-    current_group=$(( (current_group - 1 + num_groups) % num_groups ))
-    current_img=0   # reset image on group change
-    ;;
-  next_img|prev_img|""|current)
-    # handled later / no change to group here
-    ;;
-  *)
-    echo "Usage: $0 [next_page|prev_page|next_img|prev_img|current]" >&2
-    exit 1
-    ;;
+    printf '%s\n' "${files[@]}" | sort
+}
+
+load_state() {
+    if [[ -f "$STATE_FILE" ]]; then
+        # shellcheck disable=SC1090
+        source "$STATE_FILE"
+    else
+        repo_index=0
+        image_index=0
+    fi
+
+    repo_index="${repo_index:-0}"
+    image_index="${image_index:-0}"
+}
+
+save_state() {
+    cat > "$STATE_FILE" <<EOF
+repo_index=$repo_index
+image_index=$image_index
+EOF
+}
+
+wrap_index() {
+    local idx="$1"
+    local count="$2"
+
+    if ((count <= 0)); then
+        echo 0
+        return
+    fi
+
+    while ((idx < 0)); do
+        idx=$((idx + count))
+    done
+    echo $((idx % count))
+}
+
+collect_nonempty_repos() {
+    local repos_raw=()
+    local nonempty=()
+    local repo
+    mapfile -t repos_raw < <(get_repos) || return 1
+
+    for repo in "${repos_raw[@]}"; do
+        if get_images_in_repo "$repo" >/dev/null; then
+            nonempty+=("$repo")
+        fi
+    done
+
+    if ((${#nonempty[@]} == 0)); then
+        return 1
+    fi
+
+    printf '%s\n' "${nonempty[@]}"
+}
+
+apply_current() {
+    local repos=()
+    local images=()
+    local repo
+    mapfile -t repos < <(collect_nonempty_repos) || {
+        echo "No non-empty wallpaper repos found under $ROOT" >&2
+        exit 1
+    }
+
+    repo_index="$(wrap_index "$repo_index" "${#repos[@]}")"
+    repo="${repos[$repo_index]}"
+
+    mapfile -t images < <(get_images_in_repo "$repo") || {
+        echo "Internal error: selected repo has no images: $repo" >&2
+        exit 1
+    }
+
+    image_index="$(wrap_index "$image_index" "${#images[@]}")"
+    swww img --transition-type none "${images[$image_index]}"
+    save_state
+}
+
+cmd_start() {
+    repo_index=0
+    image_index=0
+    apply_current
+}
+
+cmd_next_image() {
+    load_state
+
+    local repos=()
+    local images=()
+    local repo
+
+    mapfile -t repos < <(collect_nonempty_repos) || {
+        echo "No non-empty wallpaper repos found under $ROOT" >&2
+        exit 1
+    }
+
+    repo_index="$(wrap_index "$repo_index" "${#repos[@]}")"
+    repo="${repos[$repo_index]}"
+
+    mapfile -t images < <(get_images_in_repo "$repo") || {
+        echo "Internal error: selected repo has no images: $repo" >&2
+        exit 1
+    }
+
+    image_index=$((image_index + 1))
+    image_index="$(wrap_index "$image_index" "${#images[@]}")"
+    apply_current
+}
+
+cmd_prev_image() {
+    load_state
+
+    local repos=()
+    local images=()
+    local repo
+
+    mapfile -t repos < <(collect_nonempty_repos) || {
+        echo "No non-empty wallpaper repos found under $ROOT" >&2
+        exit 1
+    }
+
+    repo_index="$(wrap_index "$repo_index" "${#repos[@]}")"
+    repo="${repos[$repo_index]}"
+
+    mapfile -t images < <(get_images_in_repo "$repo") || {
+        echo "Internal error: selected repo has no images: $repo" >&2
+        exit 1
+    }
+
+    image_index=$((image_index - 1))
+    image_index="$(wrap_index "$image_index" "${#images[@]}")"
+    apply_current
+}
+
+cmd_next_repo() {
+    load_state
+    repo_index=$((repo_index + 1))
+    image_index=0
+    apply_current
+}
+
+cmd_prev_repo() {
+    load_state
+    repo_index=$((repo_index - 1))
+    image_index=0
+    apply_current
+}
+
+case "${1:-}" in
+    start)      cmd_start ;;
+    next-image) cmd_next_image ;;
+    prev-image) cmd_prev_image ;;
+    next-repo)  cmd_next_repo ;;
+    prev-repo)  cmd_prev_repo ;;
+    *)
+        echo "Usage: $0 {start|next-image|prev-image|next-repo|prev-repo}" >&2
+        exit 1
+        ;;
 esac
-
-# --- now: figure out images inside the current group ---
-group_dir="${dir_list[$current_group]%/}"
-img_list=( "$group_dir"/* )
-num_imgs=${#img_list[@]}
-
-if (( num_imgs == 0 )); then
-  echo "No images found in $group_dir" >&2
-  exit 1
-fi
-
-# light safety on img index
-if (( current_img < 0 || current_img >= num_imgs )); then
-  current_img=0
-fi
-
-# --- handle image navigation (next_img/prev_img) ---
-case "$cmd" in
-  next_img)
-    current_img=$(( (current_img + 1) % num_imgs ))
-    ;;
-  prev_img)
-    current_img=$(( (current_img - 1 + num_imgs) % num_imgs ))
-    ;;
-esac
-
-# --- save state back to file ---
-printf '%s\n%s\n' "$current_group" "$current_img" > "$state_file"
-
-current_image="${img_list[$current_img]}"
-
-# --- output current state ---
-echo "Current group index: $current_group"
-echo "Current directory: $group_dir"
-echo "Current image index: $current_img"
-echo "Current image: $current_image"
-
-# --- actually set the wallpaper via hyprpaper ---
-hyprctl hyprpaper preload "$current_image"
-hyprctl hyprpaper reload "$monitor,contain:$current_image"   # see fit notes below
-hyprctl hyprpaper unload unused
-
-
